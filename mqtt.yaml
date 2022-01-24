@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mqtt-data-pv
+  namespace: mqtt
+spec:
+  storageClassName: mqtt-data-pv
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce 
+    - ReadOnlyMany  
+  persistentVolumeReclaimPolicy: Retain 
+  hostPath:
+    path: /home/awei/nfs/mqtt/data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mqtt-data-pvc
+  namespace: mqtt
+spec:
+  storageClassName: mqtt-data-pv
+  resources:
+    requests:
+      storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mqtt-log-pv
+  namespace: mqtt
+spec:
+  storageClassName: mqtt-log-pv
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce 
+    - ReadOnlyMany  
+  persistentVolumeReclaimPolicy: Retain 
+  hostPath:
+    path: /home/awei/nfs/mqtt/log
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mqtt-log-pvc
+  namespace: mqtt
+spec:
+  storageClassName: mqtt-log-pv
+  resources:
+    requests:
+      storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-deployment
+  namespace: mqtt
+  labels:
+    app: mqtt
+spec:
+  selector:
+    matchLabels:
+      app: mqtt
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mqtt
+    spec:
+      containers:
+        - name: mqtt
+          image: 192.168.182.153:5001/mqtt:latest
+          ports:
+            - containerPort: 1883
+            - containerPort: 9001
+          resources:
+            limits:
+              cpu: 512m
+              memory: 512Mi
+            requests:
+              cpu: 256m
+              memory: 256Mi
+          env:
+            - name: TZ
+              value: Asia/Taipei
+          volumeMounts:
+            - name: log
+              mountPath: /mosquitto/log
+            - name: data
+              mountPath: /mosquitto/data
+      volumes:
+        - name: log
+          persistentVolumeClaim:
+            claimName: mqtt-log-pvc
+        - name: data
+          persistentVolumeClaim:
+            claimName: mqtt-data-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt-service
+  namespace: mqtt
+spec:
+  ports:
+    - port: 1883
+      name: mqtt-1883
+      targetPort: 1883
+      nodePort: 30008
+      protocol: TCP
+    - port: 9001
+      name: mqtt-9001
+      targetPort: 9001
+      nodePort: 30009
+      protocol: TCP
+  type: NodePort
+  selector:
+    app: mqtt
